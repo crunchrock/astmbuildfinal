@@ -1,100 +1,65 @@
 <!DOCTYPE html>
 <html lang="en-us">
   <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Unity Web Player | ASTM</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
-
+    <link rel="shortcut icon" href="TemplateData/favicon.ico" />
+    <link rel="stylesheet" href="TemplateData/style.css" />
     <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        width: 100%;
-        overflow: hidden;
-        background: black;
+      html, body { margin:0; height:100%; background:#231F20; overflow:hidden; }
+      #unity-root { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+      #unity-container { position:relative; display:inline-block; }
+      #unity-canvas { display:block; } /* size set by JS for aspect-fit */
+      #unity-loading-bar, #unity-warning, #unity-footer {
+        position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;
       }
-
-      #unity-container {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        position: relative;
-      }
-
-      #unity-canvas {
-        width: 100% !important;
-        height: 100% !important;
-        object-fit: contain; /* preserves aspect ratio */
-        background: black;
-      }
-
-      #unity-footer,
-      #unity-loading-bar,
-      #unity-warning {
-        position: absolute;
-        left: 0;
-        right: 0;
-        text-align: center;
-        z-index: 10;
-      }
-
-      #unity-footer {
-        bottom: 0;
-      }
-      #unity-loading-bar {
-        top: 50%;
-        transform: translateY(-50%);
-      }
-      #unity-warning {
-        top: 0;
-      }
+      /* keep default template visuals; they’ll auto-fit container width */
+      #unity-fullscreen-button { pointer-events:auto; }
     </style>
   </head>
   <body>
-    <div id="unity-container">
-      <canvas id="unity-canvas" tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
+    <div id="unity-root">
+      <div id="unity-container" class="unity-desktop">
+        <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+          <div id="unity-logo"></div>
+          <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+          </div>
+        </div>
+        <div id="unity-warning"></div>
+        <div id="unity-footer">
+          <div id="unity-logo-title-footer"></div>
+          <div id="unity-fullscreen-button"></div>
+          <div id="unity-build-title">ASTM</div>
         </div>
       </div>
-      <div id="unity-warning"></div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">ASTM</div>
-      </div>
     </div>
+
     <script>
-      var canvas = document.querySelector("#unity-canvas");
+      const canvas = document.querySelector("#unity-canvas");
+      const container = document.querySelector("#unity-container");
 
       function unityShowBanner(msg, type) {
-        var warningBanner = document.querySelector("#unity-warning");
+        const warningBanner = document.querySelector("#unity-warning");
         function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+          warningBanner.style.display = warningBanner.children.length ? "block" : "none";
         }
-        var div = document.createElement('div');
+        const div = document.createElement("div");
         div.innerHTML = msg;
         warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        if (type === "error") div.style = "background:red;padding:10px;";
         else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
+          if (type === "warning") div.style = "background:yellow;padding:10px;";
+          setTimeout(() => { warningBanner.removeChild(div); updateBannerVisibility(); }, 5000);
         }
         updateBannerVisibility();
       }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/astm builds.loader.js";
-      var config = {
+      const buildUrl = "Build";
+      const loaderUrl = buildUrl + "/astm builds.loader.js";
+      const config = {
         arguments: [],
         dataUrl: buildUrl + "/astm builds.data.unityweb",
         frameworkUrl: buildUrl + "/astm builds.framework.js.unityweb",
@@ -104,30 +69,54 @@
         productName: "ASTM",
         productVersion: "0.1.0",
         showBanner: unityShowBanner,
+        // Leave default: matchWebGLToCanvasSize=true (keeps RT size = CSS size)
       };
 
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.head.appendChild(meta);
+      // Aspect-fit the canvas to the viewport so nothing clips horizontally or vertically.
+      const REF_W = 960, REF_H = 600, REF_AR = REF_W / REF_H;
+      function fitCanvas() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        let w, h;
+        if (vw / vh > REF_AR) { // window is wider than game
+          h = vh;
+          w = Math.round(h * REF_AR);
+        } else { // window is taller/narrower than game
+          w = vw;
+          h = Math.round(w / REF_AR);
+        }
+        // Prevent tiny rounding gaps
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        container.style.width = w + "px";
+        container.style.height = h + "px";
+      }
+      window.addEventListener("resize", fitCanvas);
 
+      // Mobile handling
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        const meta = document.createElement("meta");
+        meta.name = "viewport";
+        meta.content = "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
+        document.head.appendChild(meta);
         document.querySelector("#unity-container").className = "unity-mobile";
         canvas.className = "unity-mobile";
+        // Optional perf tradeoff:
+        // config.devicePixelRatio = 1;
       }
 
       document.querySelector("#unity-loading-bar").style.display = "block";
+      fitCanvas(); // initial sizing
 
-      var script = document.createElement("script");
+      const script = document.createElement("script");
       script.src = loaderUrl;
       script.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
           document.querySelector("#unity-progress-bar-full").style.width = (100 * progress) + "%";
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
-          document.querySelector("#unity-fullscreen-button").onclick = () => {
-            unityInstance.SetFullscreen(1);
-          };
+          document.querySelector("#unity-fullscreen-button").onclick = () => unityInstance.SetFullscreen(1);
+          fitCanvas(); // ensure final fit after engine boots
         }).catch((message) => {
           alert(message);
         });
