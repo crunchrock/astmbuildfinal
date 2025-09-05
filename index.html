@@ -6,56 +6,118 @@
     <title>Unity Web Player | ASTM</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico" />
     <link rel="stylesheet" href="TemplateData/style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <style>
-      html, body { margin:0; height:100%; background:#231F20; overflow:hidden; }
-      #unity-root { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
-      #unity-container { position:relative; display:inline-block; }
-      #unity-canvas { display:block; } /* size set by JS for aspect-fit */
-      #unity-loading-bar, #unity-warning, #unity-footer {
-        position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;
+      html, body { height:100%; margin:0; background:#000; overflow:hidden; }
+      /* Fullscreen stage with letterbox/pillarbox */
+      #stage {
+        position:fixed; inset:0;
+        display:grid; place-items:center;
+        background:#000;
       }
-      /* keep default template visuals; they’ll auto-fit container width */
-      #unity-fullscreen-button { pointer-events:auto; }
+      /* JS sets exact 16:9 size here */
+      #canvas-wrap { position:relative; width:960px; height:540px; }
+      #unity-canvas { width:100%; height:100%; display:block; outline:none; background:#000; }
+
+      /* Overlay UI pinned to the canvas bounds */
+      #unity-loading-bar, #unity-warning, #unity-footer {
+        position:absolute; left:0; right:0; pointer-events:none;
+        font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
+      #unity-warning { top:8px; text-align:center; z-index:3; }
+      #unity-loading-bar { bottom:16px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:2; }
+      #unity-progress-bar-empty { width:60%; max-width:520px; height:10px; background:#333; }
+      #unity-progress-bar-full { width:0%; height:100%; background:#6cf; }
+
+      /* Fullscreen button within canvas */
+      #unity-fullscreen-button {
+        position:absolute; top:12px; right:12px; width:40px; height:40px;
+        pointer-events:auto; cursor:pointer; z-index:4;
+        background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:8px;
+        display:flex; align-items:center; justify-content:center;
+      }
+      #unity-fullscreen-button:after {
+        content:"⤢"; color:#fff; font-size:20px; line-height:1;
+      }
+
+      /* Hide default desktop/mobile sizing from template */
+      .unity-desktop #unity-canvas, .unity-mobile #unity-canvas { width:100% !important; height:100% !important; }
     </style>
   </head>
   <body>
-    <div id="unity-root">
-      <div id="unity-container" class="unity-desktop">
-        <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+    <div id="stage">
+      <div id="canvas-wrap">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+
         <div id="unity-loading-bar">
           <div id="unity-logo"></div>
           <div id="unity-progress-bar-empty">
             <div id="unity-progress-bar-full"></div>
           </div>
         </div>
+
         <div id="unity-warning"></div>
+
         <div id="unity-footer">
           <div id="unity-logo-title-footer"></div>
-          <div id="unity-fullscreen-button"></div>
-          <div id="unity-build-title">ASTM</div>
+          <div id="unity-build-title" style="text-align:center; color:#bbb; padding:6px 0;">ASTM</div>
         </div>
+
+        <div id="unity-fullscreen-button" title="Fullscreen"></div>
       </div>
     </div>
 
     <script>
-      const canvas = document.querySelector("#unity-canvas");
-      const container = document.querySelector("#unity-container");
+      const canvas = document.getElementById("unity-canvas");
+      const wrap = document.getElementById("canvas-wrap");
 
       function unityShowBanner(msg, type) {
         const warningBanner = document.querySelector("#unity-warning");
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? "block" : "none";
-        }
         const div = document.createElement("div");
         div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type === "error") div.style = "background:red;padding:10px;";
+        div.style = "display:inline-block; margin:2px 6px; padding:8px 12px; color:#000;";
+        if (type === "error") div.style.background = "red";
         else {
-          if (type === "warning") div.style = "background:yellow;padding:10px;";
-          setTimeout(() => { warningBanner.removeChild(div); updateBannerVisibility(); }, 5000);
+          if (type === "warning") div.style.background = "yellow";
+          setTimeout(() => { warningBanner.removeChild(div); toggle(); }, 5000);
         }
-        updateBannerVisibility();
+        warningBanner.appendChild(div);
+        toggle();
+        function toggle() { warningBanner.style.display = warningBanner.children.length ? "block" : "none"; }
       }
+
+      // 16:9 layout that never crops content. Adds letterbox/pillarbox as needed.
+      function layout169() {
+        const ww = window.innerWidth;
+        const wh = window.innerHeight;
+        const aspect = 16 / 9;
+
+        let w, h;
+        if (ww / wh > aspect) { // window wider than 16:9 => fit height
+          h = Math.floor(wh);
+          w = Math.floor(h * aspect);
+        } else {                // window taller/narrower than 16:9 => fit width
+          w = Math.floor(ww);
+          h = Math.floor(w / aspect);
+        }
+
+        // Avoid subpixel sizes and thrash
+        if ((wrap._w === w) && (wrap._h === h)) return;
+        wrap._w = w; wrap._h = h;
+
+        wrap.style.width = w + "px";
+        wrap.style.height = h + "px";
+      }
+
+      // Run once and on resize/orientation/DPR changes
+      layout169();
+      addEventListener("resize", layout169);
+      addEventListener("orientationchange", layout169);
+      // React to devicePixelRatio changes
+      (function watchDPR() {
+        let mql = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        mql.addEventListener("change", () => { layout169(); watchDPR(); }, { once: true });
+      })();
 
       const buildUrl = "Build";
       const loaderUrl = buildUrl + "/astm builds.loader.js";
@@ -69,44 +131,18 @@
         productName: "ASTM",
         productVersion: "0.1.0",
         showBanner: unityShowBanner,
-        // Leave default: matchWebGLToCanvasSize=true (keeps RT size = CSS size)
+        matchWebGLToCanvasSize: true,              // keep render target synced to CSS size
+        // Optional: cap DPR to control memory/VRAM on hi-DPI displays. Comment out to use native DPR.
+        // devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       };
 
-      // Aspect-fit the canvas to the viewport so nothing clips horizontally or vertically.
-      const REF_W = 960, REF_H = 600, REF_AR = REF_W / REF_H;
-      function fitCanvas() {
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        let w, h;
-        if (vw / vh > REF_AR) { // window is wider than game
-          h = vh;
-          w = Math.round(h * REF_AR);
-        } else { // window is taller/narrower than game
-          w = vw;
-          h = Math.round(w / REF_AR);
-        }
-        // Prevent tiny rounding gaps
-        canvas.style.width = w + "px";
-        canvas.style.height = h + "px";
-        container.style.width = w + "px";
-        container.style.height = h + "px";
-      }
-      window.addEventListener("resize", fitCanvas);
-
-      // Mobile handling
+      // Mobile viewport tuning
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        const meta = document.createElement("meta");
-        meta.name = "viewport";
-        meta.content = "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
-        document.head.appendChild(meta);
-        document.querySelector("#unity-container").className = "unity-mobile";
-        canvas.className = "unity-mobile";
-        // Optional perf tradeoff:
-        // config.devicePixelRatio = 1;
+        document.documentElement.style.height = "100%";
+        document.body.style.height = "100%";
       }
 
       document.querySelector("#unity-loading-bar").style.display = "block";
-      fitCanvas(); // initial sizing
 
       const script = document.createElement("script");
       script.src = loaderUrl;
@@ -116,7 +152,8 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           document.querySelector("#unity-fullscreen-button").onclick = () => unityInstance.SetFullscreen(1);
-          fitCanvas(); // ensure final fit after engine boots
+          // Ensure layout after engine sets initial size
+          layout169();
         }).catch((message) => {
           alert(message);
         });
