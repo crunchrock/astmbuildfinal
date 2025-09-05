@@ -9,38 +9,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <style>
       html, body { height:100%; margin:0; background:#000; overflow:hidden; }
-      /* Fullscreen stage with letterbox/pillarbox */
-      #stage {
-        position:fixed; inset:0;
-        display:grid; place-items:center;
-        background:#000;
-      }
-      /* JS sets exact 16:9 size here */
+      #stage { position:fixed; inset:0; display:grid; place-items:center; background:#000; }
       #canvas-wrap { position:relative; width:960px; height:540px; }
-      #unity-canvas { width:100%; height:100%; display:block; outline:none; background:#000; }
+      #unity-canvas { width:100%; height:100%; display:block; outline:0; background:#000; }
 
-      /* Overlay UI pinned to the canvas bounds */
-      #unity-loading-bar, #unity-warning, #unity-footer {
+      #unity-warning, #unity-loading-bar, #unity-footer {
         position:absolute; left:0; right:0; pointer-events:none;
-        font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       }
       #unity-warning { top:8px; text-align:center; z-index:3; }
       #unity-loading-bar { bottom:16px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:2; }
       #unity-progress-bar-empty { width:60%; max-width:520px; height:10px; background:#333; }
       #unity-progress-bar-full { width:0%; height:100%; background:#6cf; }
+      #unity-footer { bottom:0; text-align:center; color:#bbb; padding:6px 0; }
 
-      /* Fullscreen button within canvas */
       #unity-fullscreen-button {
         position:absolute; top:12px; right:12px; width:40px; height:40px;
         pointer-events:auto; cursor:pointer; z-index:4;
         background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:8px;
         display:flex; align-items:center; justify-content:center;
       }
-      #unity-fullscreen-button:after {
-        content:"⤢"; color:#fff; font-size:20px; line-height:1;
-      }
+      #unity-fullscreen-button:after { content:"⤢"; color:#fff; font-size:20px; line-height:1; }
 
-      /* Hide default desktop/mobile sizing from template */
       .unity-desktop #unity-canvas, .unity-mobile #unity-canvas { width:100% !important; height:100% !important; }
     </style>
   </head>
@@ -51,16 +41,14 @@
 
         <div id="unity-loading-bar">
           <div id="unity-logo"></div>
-          <div id="unity-progress-bar-empty">
-            <div id="unity-progress-bar-full"></div>
-          </div>
+          <div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div>
         </div>
 
         <div id="unity-warning"></div>
 
         <div id="unity-footer">
           <div id="unity-logo-title-footer"></div>
-          <div id="unity-build-title" style="text-align:center; color:#bbb; padding:6px 0;">ASTM</div>
+          <div id="unity-build-title">ASTM</div>
         </div>
 
         <div id="unity-fullscreen-button" title="Fullscreen"></div>
@@ -72,91 +60,71 @@
       const wrap = document.getElementById("canvas-wrap");
 
       function unityShowBanner(msg, type) {
-        const warningBanner = document.querySelector("#unity-warning");
+        const banner = document.getElementById("unity-warning");
         const div = document.createElement("div");
         div.innerHTML = msg;
         div.style = "display:inline-block; margin:2px 6px; padding:8px 12px; color:#000;";
         if (type === "error") div.style.background = "red";
         else {
           if (type === "warning") div.style.background = "yellow";
-          setTimeout(() => { warningBanner.removeChild(div); toggle(); }, 5000);
+          setTimeout(() => { banner.removeChild(div); toggle(); }, 5000);
         }
-        warningBanner.appendChild(div);
+        banner.appendChild(div);
         toggle();
-        function toggle() { warningBanner.style.display = warningBanner.children.length ? "block" : "none"; }
+        function toggle(){ banner.style.display = banner.children.length ? "block" : "none"; }
       }
 
-      // 16:9 layout that never crops content. Adds letterbox/pillarbox as needed.
       function layout169() {
-        const ww = window.innerWidth;
-        const wh = window.innerHeight;
-        const aspect = 16 / 9;
-
+        const ww = innerWidth, wh = innerHeight, a = 16/9;
         let w, h;
-        if (ww / wh > aspect) { // window wider than 16:9 => fit height
-          h = Math.floor(wh);
-          w = Math.floor(h * aspect);
-        } else {                // window taller/narrower than 16:9 => fit width
-          w = Math.floor(ww);
-          h = Math.floor(w / aspect);
-        }
-
-        // Avoid subpixel sizes and thrash
-        if ((wrap._w === w) && (wrap._h === h)) return;
+        if (ww / wh > a) { h = Math.floor(wh); w = Math.floor(h * a); }
+        else { w = Math.floor(ww); h = Math.floor(w / a); }
+        if (wrap._w === w && wrap._h === h) return;
         wrap._w = w; wrap._h = h;
-
         wrap.style.width = w + "px";
         wrap.style.height = h + "px";
       }
-
-      // Run once and on resize/orientation/DPR changes
       layout169();
       addEventListener("resize", layout169);
       addEventListener("orientationchange", layout169);
-      // React to devicePixelRatio changes
-      (function watchDPR() {
-        let mql = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-        mql.addEventListener("change", () => { layout169(); watchDPR(); }, { once: true });
+      (function watchDPR(){
+        let m = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+        m.addEventListener("change", () => { layout169(); watchDPR(); }, { once:true });
       })();
 
       const buildUrl = "Build";
-      const loaderUrl = buildUrl + "/astm builds.loader.js";
+      const loaderUrl = buildUrl + "/Build.loader.js";
       const config = {
         arguments: [],
-        dataUrl: buildUrl + "/astm builds.data.unityweb",
-        frameworkUrl: buildUrl + "/astm builds.framework.js.unityweb",
-        codeUrl: buildUrl + "/astm builds.wasm.unityweb",
+        dataUrl: buildUrl + "/Build.data.unityweb",
+        frameworkUrl: buildUrl + "/Build.framework.js.unityweb",
+        codeUrl: buildUrl + "/Build.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "ASTM",
         productVersion: "0.1.0",
         showBanner: unityShowBanner,
-        matchWebGLToCanvasSize: true,              // keep render target synced to CSS size
-        // Optional: cap DPR to control memory/VRAM on hi-DPI displays. Comment out to use native DPR.
-        // devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        matchWebGLToCanvasSize: true,
+        // devicePixelRatio: Math.min(devicePixelRatio || 1, 2),
       };
 
-      // Mobile viewport tuning
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         document.documentElement.style.height = "100%";
         document.body.style.height = "100%";
       }
 
-      document.querySelector("#unity-loading-bar").style.display = "block";
+      document.getElementById("unity-loading-bar").style.display = "block";
 
       const script = document.createElement("script");
       script.src = loaderUrl;
       script.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
-          document.querySelector("#unity-progress-bar-full").style.width = (100 * progress) + "%";
+          document.getElementById("unity-progress-bar-full").style.width = (100 * progress) + "%";
         }).then((unityInstance) => {
-          document.querySelector("#unity-loading-bar").style.display = "none";
-          document.querySelector("#unity-fullscreen-button").onclick = () => unityInstance.SetFullscreen(1);
-          // Ensure layout after engine sets initial size
+          document.getElementById("unity-loading-bar").style.display = "none";
+          document.getElementById("unity-fullscreen-button").onclick = () => unityInstance.SetFullscreen(1);
           layout169();
-        }).catch((message) => {
-          alert(message);
-        });
+        }).catch((message) => { alert(message); });
       };
       document.body.appendChild(script);
     </script>
